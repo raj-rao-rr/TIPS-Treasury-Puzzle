@@ -1,6 +1,10 @@
 %This code is generates the aggregate average mispricing across all
 %maturities and on the three maturity buckets
 
+clearvars -except root_dir;
+
+%%
+
 if mode == "student_og" || mode == "student_old"
     %Loads the TIPS and Treasury link table 
     [~,CUSIP] = xlsread('S:\SHARE\cmf\Desi\Ken\project\Data\BONDS\US_numberversion_TIPSsortedbymaturity',4);

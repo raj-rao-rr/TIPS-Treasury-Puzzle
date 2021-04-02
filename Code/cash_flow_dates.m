@@ -5,6 +5,9 @@
 % Last Edit: 2/26/2021
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+clearvars -except root_dir;
+
+
 %% Import Data
 
 %Gets the pairs table and the bond overview table for U.S. Treasury 

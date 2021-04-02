@@ -5,6 +5,10 @@
 % Last Edit: 2/26/2021
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+clearvars -except root_dir;
+
+%%
+
 % Loads STRIP overview bond table
 [strip_num,strip] = xlsread([data_dir bond_excel],3);
 

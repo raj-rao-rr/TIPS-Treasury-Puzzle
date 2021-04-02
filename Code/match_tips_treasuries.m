@@ -1,34 +1,93 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% This code creates the bond pairs, by matching U.S. TIPS and Treasuries 
-% to each other
-% 
-% Last Edit: 2/26/2021
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% This code creates the bond pairs, by matching U.S. TIPS and Treasuries
 
-%% Import the TIPS and Treasury Data Tables
+clearvars -except root_dir;
 
-if mode == "student_updated" || mode == "fleck_rep"
-    [num,str] = xlsread([data_dir, bond_excel],1);
-    [num2,str2] = xlsread([data_dir, bond_excel],2);
-    [num3,str3] = xlsread([data_dir, 'BOND PRICES\TREASURY PRICES_numberversion'],3);
-elseif strcmp(mode,'student_old')
-    [num,str] = xlsread(data_dir, bond_excel,1);
-    [num2,str2] = xlsread(data_dir, bond_excel,2);
-    [num3,str3] = xlsread([data_dir, 'BOND PRICES\TREASURY PRICES_numberversion'],3);
-elseif strcmp(mode,'feb2021_update')
-    [num,str] = xlsread([data_dir, bond_excel],1);
-    [num2,str2] = xlsread([data_dir, bond_excel],2);
-    [num3,str3] = xlsread([data_dir, 'BOND PRICES\TREASURY_PRICES_MERGED'],1);
-end  
+% Import the TIPS and Treasury Data Tables
+load DATA TIPS TREASURYS
 
-tips = str;
-tips_num = num;
-treasury = str2;
-treasury_num = num2;
-treasuryp = str3;
-treasuryp_num = num3;
 
-%% loop through TIPS issues
+%% Matching TIPS issues with Treasury
+
+[T1, ~] = size(TIPS);
+
+% iterate through each tips issue
+for row1 = 1:1
+    
+    % if tips matures before 2004 or if tips is when-issued, we skip 
+    if (year(TIPS{row1,'Maturity'}) < 2004) || (TIPS{row1,'Ticker'}=="WITII")  
+        j=j+1;
+        continue 
+    end 
+    
+    % get current TIPS ISIN number
+    tips_isin = TIPS{row1, "ISIN"}; 
+    
+    % find maturity matched bonds (<= 31 days for maturity)
+    maturity_match = find(abs(TIPS{row1,'Maturity'} - ...                    % difference is duration auto-map to days (24 hr)
+        TREASURYS{:,'Maturity'}) <= 31);  
+   
+    % CUSIPs of all treasury fulfilling above criteria 
+    cusip_matches = TREASURYS{maturity_match, 'CUSIP'};
+    
+    % filter the matching Treasury securities 
+    matched_treasury = TREASURYS(maturity_match, :);
+    check2004 = matched_treasury(matched_treasury.First_Coupon_Date ...     % check if issue is before 2004
+        <= datetime(2004,1,1), :);
+    
+    % if no treasury is issued before 1/1/2004, find most-recent issue
+    if isempty(check2004)
+        newest_issue = max(matched_treasury{:, 'Issue_Date'});
+        newest_match = matched_treasury(ismember(matched_treasury.Issue_Date, ...
+            newest_issue),:);
+        
+    % otherwise find all bonds issued before 1/1/2004
+    else
+        newest_match = check2004;
+    end
+
+    % find the bond with issue date closest to that of the tips 
+    differential = abs(TIPS{row1,'Issue_Date'} - ...
+        newest_match{:,'Issue_Date'});
+    
+    % select the closest issue bond to match  
+    bond_match = newest_match(differential == min(differential), :);
+    
+    % Retrieve Bond Prices
+    % -----------------------------------------------------------
+    issue_date = bond_match{:, 'Issue_Date'};
+    
+    
+    while k <= length(treasury(range,18))
+       issue_date = treasury_num(range(k), 12)
+       IndexCU = strfind(treasuryp(1,:), treasury(range(k)+1, 18)); 
+       IndexC = find(not(cellfun('isempty', IndexCU)));
+       
+       IndexID = find(treasuryp_num(:,IndexC) == issue_date)
+
+       if isnan(treasuryp_num(IndexID+5,IndexC+1))
+           isavailable(k) = 0;
+       else
+           isavailable(k) = 1;
+       end    
+       k = k + 1;
+    end
+    
+    if ~(isempty(range))
+        range = range(find(isavailable));
+    end 
+    
+    %finds abs date difference in maturity on TIPS and Treasuries
+    [val,index] = min(abs(tips_num(j,2)-treasury_num(range,2)));
+    range = range(index);
+
+    %issue date for Trea has to be smaller than
+    %TIPS maturity date.
+    range = range(find(treasury_num(range,12)<tips_num(j,2)));
+    ISIN = treasury((range+1),18); %11 for ISIN
+
+end
+
+%%
 
 j = 1;
 range1 = zeros(0,0);
@@ -37,7 +96,7 @@ isavailable = zeros(0,0);
 ISIN_ISIN = zeros(0,0);
 
 while j <= length(tips_num(:,1))
-    if tips_num(j,2) < 37987.00 %if tips matures before 2004 skip it. 
+    if tips_num(j,2) < 37987.00  % if tips matures before 2004 skip it. 
         j=j+1;
         continue 
     end 

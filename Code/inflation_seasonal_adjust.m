@@ -6,6 +6,10 @@
 % Last Edit: 2/26/2021
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+clearvars -except root_dir;
+
+%%
+
 % Loads the zero-coupon inflation swap quotes 
 if strcmp(mode, 'student_old')
     [num,str] = xlsread([data_dir '\INFLATION SWAP CURVES\DATA\ZC INFLATION SWAP CURVES_numberversion_REVERSED'],1);

@@ -2,6 +2,10 @@
 %TIPS-Treasury mispricing. It draws on other programmes, but is the main
 %motor for quantifying the level of the mispricing. 
 
+clearvars -except root_dir;
+
+%%
+
 % set options/mode of running
 inflationAdjFlag = false; % toggle for base inflation adjustment
 winsorFlag       = false; % toggle for winsorizing individual pair results  

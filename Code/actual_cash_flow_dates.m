@@ -5,6 +5,10 @@
 % Last Edit: 2/26/2021
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+clearvars -except root_dir;
+
+%%
+
 %Loads the link table between Treasuries and STRIPS
 [~,TreasurySTRIPs]  = xlsread([data_dir, bond_excel],strip_sheet);
 
