@@ -44,9 +44,13 @@ Data Fields that are automatically updated from HTML connections
 
 **II. Pull New Price Data**
 
-  1. Begin by copying the CUSIPS from each excel file (e.g. TIPS.xlsx) onto an empty spreadsheet and concat each the " Govt" string to the end of each CUSIP
+  1. Begin by copying the CUSIPS from each excel file (e.g. TIPS.xlsx) onto an empty excel file and concat each with the " Govt" string to the end of each CUSIP. These strings will be the Bloomberg IDs used to retrieve historical prices. 
 
-  2.
+  2. In the same excel file, transpose the vertical array of CUSIPS and with an active Bloomberg Session open the Spreadsheet Builder tool to retrieve historical prices 
+
+  3. After retrieving historical prices, "Copy" the entire dataseries and "Paste Values". Follow by performing a Find and Replace on `#N/A N/A` (Bloomberg parse error)
+  
+  4. Finally, save each price series set for the accompanying security under the price handle. We currently use the convention "PRICES_XXX" where "XXX" is the fixed income security examined (i.e. TIPS, Treasury, STRIPS) 
 
 **III. Pull New Inflation Swap Price Data**
 
