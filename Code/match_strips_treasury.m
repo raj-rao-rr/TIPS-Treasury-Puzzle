@@ -1,147 +1,147 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% This code matches STRIPS to each cash-flow date for all the U.S. Treasury
-% bonds that are to be replicated
-%
-% Last Edit: 2/26/2021
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% This code matches STRIPS to each cash-flow date for the U.S. Treasury bonds 
 
 clearvars -except root_dir;
 
-%%
+% Import the STRIPS and Treasury Data Tables, as well as STRIPS prices
+load DATA STRIPS TREASURYS PRICE_S
 
-% Loads STRIP overview bond table
-[strip_num,strip] = xlsread([data_dir bond_excel],3);
+% Import the TIPS and Treasury pairs as well as cash flow dates
+load MATCH tips_treasury_match cashflow_dates
 
-% Loads the overview table for the Treasury bonds
-[staticTreaNum,staticTrea] = xlsread([data_dir bond_excel],2);
 
-if strcmp(mode,'fleck_rep')
-    % Loads the pairs table
-    [~,CUSIP] = xlsread([data_dir bond_excel],8);
-else
-    % Loads the pairs table
-    [~,CUSIP] = xlsread([data_dir bond_excel],4);
-end
+%% Matching STRIPS issues with Treasury
 
-% Loads the Treasury coupon dates
-[treasury_coup_num,treasury_coup] = xlsread([data_dir bond_excel],cf_sheet);
+% filter only the unique CUSIPS from the Treasury match 
+cusips = unique(tips_treasury_match{:, 'Treasury_CUSIP'});
+[T1, ~] = size(cusips);
 
-% Loads the prices of STRIPS
-if strcmp(mode,'student_old')
-    [strip_price_num,strip_price] = xlsread([data_dir 'BOND PRICES\US STRIPS PRICES'],3);
-else
-    [strip_price_num,strip_price] = xlsread([data_dir 'BOND PRICES\STRIPS_PRICES_MERGED'],1);
-end
+% will be stored for database construction
+database = cell(1, T1);
 
-j = 1;
-k = 1;
-
-while j <= length(CUSIP(2:end,2))
+% iterate through each CUSIP within TIPS-Treasury pairs
+for j = 1:T1
+   
+    % select Treasury CUSIP name from pair matches
+    treasury_cusip = cusips(j);
     
-    %find index of current treasury bond in coupon list
-    current_CUSIP = CUSIP(j+1,2);
-    IndexC = strfind(treasury_coup(1,:),current_CUSIP); 
-    Index = find(not(cellfun('isempty', IndexC)));
-        
-    %Finds static bond data for current bond
-    IndexB = strfind(staticTrea(:,18),current_CUSIP); 
-    Indexb = find(not(cellfun('isempty', IndexB)));
-    currentBond = staticTreaNum(Indexb-1,:);
+    % select the Treasury bond corresponding with CUSIP
+    current_bond = TREASURYS(ismember(TREASURYS{:, 'CUSIP'}, treasury_cusip), :); 
     
-    %Finds the coupon dates for the current bond
-    current_selection = treasury_coup_num(:,Index(1,k));
-    current_selection(current_selection==0)=[]; 
-    results(1,j) = strcat('''',CUSIP(j+1,2));
-        i = 1;
-        while i <= length(current_selection) % loops through each coupon to find a STRIP
-            %finds maturity matched strips (less than or equal 31 days for coupon date)
-            %strip_num(:,2)- MATURITY, strip(:,9)- CUSIP
-            range=find(abs(current_selection(i,1)-strip_num(:,2))<=31 & abs(strip_num(:,2)-current_selection(i,1))<=31);
-            cusipSTRIPs = strip(range+1,9);
-            
-            %see if there is data for possible STRIPs on that coupon
-            l = 1;
-            isTherePrice = zeros(0,0);
-            allPrices = zeros(length(strip_price_num(:,1)),length(current_selection)*2);
-            allIndices = zeros(0,0);
-            while l <= length(cusipSTRIPs)
-                IndexL = strfind(strip_price(1,:),cusipSTRIPs(l));
-                Indexl = find(not(cellfun('isempty', IndexL)));
-                allIndices(l,1) = Indexl(1);
-                %start from row 2 b/c first row is weird and affects price(1,1) == 0 
-                price = strip_price_num(2:end,Indexl(1):Indexl(1)+1); 
-                %Remove zeros
-                price(find(price(:,2)==0),:) = [];
-                %Remove NaNs
-                price(any(isnan(price), 2), :) = [];
-                
-                if isempty(price)
-                    price = [0,0];
-                end    
-                    
-                allPrices(1:length(price(:,1)),((l*2)-1):l*2) = price;
-
-                if price(1,1) == 0
-                    isTherePrice(l,1) = 0;
-                %see if the strip has prices before or at (five days after) 
-                % the issue date of the treasury (currentBond(:,12))  
-                elseif sum(price(:,1)<=currentBond(1,12)+5) > 0 
-                    isTherePrice(l,1) = 1;
-                else
-                    isTherePrice(l,1) = 0;
-                end
-                l = l + 1
-            end
-           
-            %If there is more with prices we test on first available price
-            if sum(isTherePrice) > 1
-                n = 1;
-                allIndices = allIndices(find(isTherePrice));
-                numberOfPoints = zeros(0,0);
-                while n <= length(find(isTherePrice))
-                    %see which strip has the longest timeseries
-                    numberOfPoints(n,1) = sum(strip_price_num(:,allIndices(n))>=currentBond(1,12)); 
-                    n = n + 1;
-                end
-                %takes the one with most price points
-               [~,I] = max(numberOfPoints); 
-               allIndices = allIndices(I);
-
-            elseif sum(isTherePrice) == 1 
-                allIndices = allIndices(find(isTherePrice));
-            %if there is no STRIPs with data at or before issue then we take the STRIP with most price points     
-            else 
-                m = 1;
-                anyPrice = zeros(0,0);
-                while m <= length(allIndices)
-                    %finds the one with the longest timeseries
-                    lastPrice = allPrices(:,((m*2)-1):m*2);
-                    lastPrice(any(isnan(lastPrice), 2), :) = [];
-                    lastPrice(find(lastPrice(:,2)==0),:) = [];
-                    anyPrice(m,1) = length(lastPrice(:,1));
-                    m = m + 1;
-                end
-                
-                if  sum(anyPrice)~=0
-                    [~,I] = max(anyPrice);
-                    allIndices = allIndices(I,1);
-                else
-                %if there is no prices at all we mark it with 99999 and
-                %flag it as no data later
-                allIndices = 99999;
-                end    
-
-            end
+    % select the coupon dates for the correspond CUSIP
+    current_dates = cashflow_dates{:, treasury_cusip};                                % cash flow dates for Treasury coupon
+    active_dates = current_dates(~cellfun('isempty', current_dates));                 % filter out empty cash flow dates   
+    active_dates = datetime(active_dates);                                            % recast cell array to datetime array                        
+    
+    % iterate through each of the accompanying coupon dates to find STRIP
+    for i = 1:size(active_dates, 1)
         
-            if allIndices ~= 99999    
-                results(i+1,j) = strcat('''',strip_price(1,allIndices)); 
-            else
-                results{i+1,j} = '''NO DATA' ;
-            end    
-        i = i + 1
+        % select the coupon date for all active cashflow dates
+        coupon = active_dates(i);
+        
+        % select maturity matched STRIPS (less than or equal to 31 days for coupon)
+        filtered_strips = STRIPS(abs(STRIPS{:, 'Maturity'} - coupon) <= 31, :);
+        
+        % -----------------------------------------------------------
+        if isempty(filtered_strips)
+            % if we find no maturities matching 31 day condition, skip
+            continue    
         end
-j = j + 1       
+        % -----------------------------------------------------------
+
+        % selecting CUSIPS for proper price series (refer to assumptions below) 
+        isTherePrice = zeros(size(filtered_strips, 1), 1);
+        allIndices = zeros(size(filtered_strips, 1), 1);
+        
+        % -----------------------------------------------------------
+        % Check Against STRIPS Price Data
+        % -----------------------------------------------------------
+        
+        col_list = PRICE_S.Properties.VariableNames;                                  % CUSIP columns for STRIP price
+        
+        % iterate through the filtered STRIPS to secure correct prices
+        for idx = 1:size(filtered_strips{:, 'CUSIP'}, 1)
+            strip_cusip = filtered_strips{idx, 'CUSIP'};    % CUSIP for STRIP
+            col_name = strcat(strip_cusip, ' Govt');        % column name for price
+            
+            % error handling for CUSIP selection (make sure present)
+            if ismember(col_name, col_list)
+                
+                % if cusip present in STRIP price we strip NaNs and zeros
+                prices = PRICE_S(~isnan(PRICE_S{:, col_name}) & ...
+                    ~any(PRICE_S{:, col_name} == 0), [{'Var1'}, col_name(:)']);       % Var1 is our data column (first column)
+                
+                % -----------------------------------------------------------
+                % After filtering NaN and Zero (we assume the following)
+                % -----------------------------------------------------------  
+                if isempty(prices)
+                   % if no price series is returned (empty) we skip CUSIP
+                   isTherePrice(idx, 1) = 0; 
+                elseif sum(prices{:, 'Var1'} <= current_bond.Issue_Date + 5) > 0
+                   % check to see if the STRIP has prices before or at
+                   % (five days after) the issue date of the most recent
+                   % bond (we sum to check boolean presense of 1)
+                   isTherePrice(idx, 1) = 1; 
+                else
+                   isTherePrice(idx, 1) = 0; 
+                end
+                
+            end
+            
+        end
+                
+        % if there are more prices that meet condition we test on first available 
+        if sum(isTherePrice) > 1
+             filter = find(isTherePrice);                                             % select only STRIPS that match
+             cond_strips = filtered_strips(filter, :);                    
+             
+             % count the number of NaN present for a given CUSIP 
+             col_name = strcat(cond_strips.CUSIP, ' Govt');                           % column name for price
+             nan_count = sum(isnan(PRICE_S{:, col_name}));                            % number of rows that are NaN in price
+             row_count = length(PRICE_S{:, 1});                                       % length of full price series list
+             [~, max_index] = max(row_count - nan_count);                             % determines CUSIP with most price points
+             
+             % the CUSIP selection for STRIP
+             cusip_selection = cond_strips.CUSIP{max_index};
+             
+        % if there is only one price series that matches, map directly
+        elseif sum(isTherePrice) == 1
+            filter = find(isTherePrice);                                              % select only STRIPS that match
+            cusip_selection = filtered_strips{filter, 'CUSIP'};
+            
+        % if there is no matching STRIPs, then we take the one with most points     
+        else
+            % count the number of NaN present for a given CUSIP
+            col_name = strcat(filtered_strips.CUSIP, ' Govt');                        % column name for price
+            nan_count = sum(isnan(PRICE_S{:, col_name}));                             % number of rows that are NaN in price
+            row_count = length(PRICE_S{:, 1});                                        % length of full price series list
+            [~, max_index] = max(row_count - nan_count);                              % determines CUSIP with most price points
+             
+            % the CUSIP selection for STRIP
+            cusip_selection = filtered_strips.CUSIP{max_index};
+            
+        end
+        
+        % -----------------------------------------------------------
+        % Database Construction for all corresponding CUSIP
+        % -----------------------------------------------------------
+        
+        % match STRIP CUSIP for each of the Treasury bond coupon dates
+        database(i, j) = {cusip_selection};     
+        
+    end
+    
 end
 
+%% Reporting relevant database for matches
 
+% convert cell matrix to table and recast the table rows
+strips_treasury_match = cell2table(database);
+
+% convert the table column names to match the CUSIPS (in order of iteration)  
+strips_treasury_match.Properties.VariableNames = cusips; 
+
+% save contents of table to temporary file
+save('Temp/MATCH', 'strips_treasury_match', '-append')
+
+fprintf('Bond pairs have been created, for U.S. STRIPS and Treasuries.\n'); 
 

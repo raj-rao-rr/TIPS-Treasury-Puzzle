@@ -19,13 +19,10 @@ CPI = rmmissing(CPI);
 %% History of Fixed Income Prices (TIPS, Treasury, STRIPS)
 
 PRICE_T = readtable('PRICE_TREASURY.xlsx', 'PreserveVariableNames', true);
-PRICE_T = rmissing(PRICE_T);
 
 PRICE_TILL = readtable('PRICE_TIPS.xlsx', 'PreserveVariableNames', true);
-PRICE_TILL = rmissing(PRICE_TILL);
 
-PRICE_S = readtable('PRICE_STRIP.xlsx', 'PreserveVariableNames', true);
-PRICE_S = rmissing(PRICE_S);
+PRICE_S = readtable('PRICE_STRIPS.xlsx', 'PreserveVariableNames', true);
 
 %% History of Fixed Income Issuance (TIPS, Treasury, STRIPS)
 
@@ -112,6 +109,7 @@ end
 
 %% Save all variables in *.mat file to be referenced
 
-save('Temp/DATA', 'CPI', 'SWAPS', 'TREASURYS', 'STRIPS', 'TIPS')
+save('Temp/DATA', 'CPI', 'SWAPS', 'TREASURYS', 'STRIPS', 'TIPS', 'PRICE_T', ...
+    'PRICE_TILL', 'PRICE_S')
 
 fprintf('Data has been downloaded and processed.\n'); 

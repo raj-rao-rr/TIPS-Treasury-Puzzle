@@ -3,204 +3,131 @@
 clearvars -except root_dir;
 
 % Import the TIPS and Treasury Data Tables
-load DATA TIPS TREASURYS
+load DATA TIPS TREASURYS PRICE_T
 
 
 %% Matching TIPS issues with Treasury
 
 [T1, ~] = size(TIPS);
 
+% will be stored for database construction (unfiltered)
+database = cell(T1, 2);
+
 % iterate through each tips issue
-for row1 = 1:1
+for row = 1:T1
     
-    % if tips matures before 2004 or if tips is when-issued, we skip 
-    if (year(TIPS{row1,'Maturity'}) < 2004) || (TIPS{row1,'Ticker'}=="WITII")  
-        j=j+1;
+    % if tips matures before 2004 or if tips is when-issued, we skip
+    if (year(TIPS{row, 'Maturity'}) < 2004) || (TIPS{row, 'Ticker'} == "WITII")  
         continue 
     end 
     
-    % get current TIPS ISIN number
-    tips_isin = TIPS{row1, "ISIN"}; 
+    % find maturity matched bonds (less than or equal to 31 days for maturity)
+    maturity_match = find(abs(TIPS{row, 'Maturity'} - ...  
+        TREASURYS{:, 'Maturity'}) <= 31);        % difference is duration (24 hr)  
     
-    % find maturity matched bonds (<= 31 days for maturity)
-    maturity_match = find(abs(TIPS{row1,'Maturity'} - ...                    % difference is duration auto-map to days (24 hr)
-        TREASURYS{:,'Maturity'}) <= 31);  
-   
-    % CUSIPs of all treasury fulfilling above criteria 
-    cusip_matches = TREASURYS{maturity_match, 'CUSIP'};
+    % if maturity matches does not match the hard cut off, we skip 
+    if isempty(maturity_match)
+       continue 
+    end
     
-    % filter the matching Treasury securities 
+    % filter the matching Treasury securities for maturity window
     matched_treasury = TREASURYS(maturity_match, :);
-    check2004 = matched_treasury(matched_treasury.First_Coupon_Date ...     % check if issue is before 2004
-        <= datetime(2004,1,1), :);
+    check2004 = matched_treasury(matched_treasury{:, 'Issue_Date'} ...                % check if issue is before 2004
+        < datetime(2004,1,1), :);
     
-    % if no treasury is issued before 1/1/2004, find most-recent issue
+    % if no treasury is issued before 1/1/2004, find earliest issue to 2004
     if isempty(check2004)
-        newest_issue = max(matched_treasury{:, 'Issue_Date'});
-        newest_match = matched_treasury(ismember(matched_treasury.Issue_Date, ...
-            newest_issue),:);
+        % NOTE: the closer the issuance is to 2004 the better
+        [~, closest_2004_issue] = min(matched_treasury{:, 'Issue_Date'});
+        newest_match = matched_treasury(closest_2004_issue,:);
         
     % otherwise find all bonds issued before 1/1/2004
     else
         newest_match = check2004;
     end
-
-    % find the bond with issue date closest to that of the tips 
-    differential = abs(TIPS{row1,'Issue_Date'} - ...
-        newest_match{:,'Issue_Date'});
     
-    % select the closest issue bond to match  
-    bond_match = newest_match(differential == min(differential), :);
+    % find the bond(s) with issue date closest to that of the tips 
+    [~, closest_issue] = min(abs(TIPS{row, 'Issue_Date'} - ...
+        newest_match{:, 'Issue_Date'}));
     
-    % Retrieve Bond Prices
+    % select the bond(s) with the closest issue date to that of the TIPS 
+    bond_match = newest_match(closest_issue, :);
+    
     % -----------------------------------------------------------
-    issue_date = bond_match{:, 'Issue_Date'};
+    % Check Against Bond Price Data
+    % -----------------------------------------------------------
     
-    
-    while k <= length(treasury(range,18))
-       issue_date = treasury_num(range(k), 12)
-       IndexCU = strfind(treasuryp(1,:), treasury(range(k)+1, 18)); 
-       IndexC = find(not(cellfun('isempty', IndexCU)));
-       
-       IndexID = find(treasuryp_num(:,IndexC) == issue_date)
+    % boolean array to check presence of Treasury price series
+    isavailable = zeros(size(bond_match, 1), 1);
 
-       if isnan(treasuryp_num(IndexID+5,IndexC+1))
-           isavailable(k) = 0;
-       else
-           isavailable(k) = 1;
-       end    
-       k = k + 1;
+    % we may have more than one bond which match the minimum differential
+    for i = size(bond_match, 1)
+        
+        bond_issue_date = bond_match{:, 'Issue_Date'};  % issue date for bonds
+
+        % select the correct Treasury bond column by CUSIP
+        col_select = bond_match{:, 'CUSIP'} + " Govt";  % the CUSIP price selection
+        col_list = PRICE_T.Properties.VariableNames;    % all available CUSIP prices
+
+        % error handling for CUSIP selection 
+        if ismember(col_select, col_list)
+            
+            % we select the Treasury prices that correspond with our assign CUSIP 
+            % smf the issue date of the matching TIPS
+            treasury_prices = PRICE_T{PRICE_T.Var1 >= bond_issue_date, col_select};
+            
+            % check for the presence of NaN values in reduced series
+            if ~isnan(treasury_prices)
+                isavailable(i, 1) = 1;      % if no nan present we flag True boolean
+            else
+                isavailable(i, 1) = 0;      % if nan present we flag False boolean
+            end
+
+        else
+            
+            isavailable(i, 1) = 0;
+            
+        end
+        
     end
+    % -----------------------------------------------------------
     
-    if ~(isempty(range))
-        range = range(find(isavailable));
-    end 
+    % select the new bond(s) with active price series 
+    new_bond_match = bond_match(isavailable, :);
     
-    %finds abs date difference in maturity on TIPS and Treasuries
-    [val,index] = min(abs(tips_num(j,2)-treasury_num(range,2)));
-    range = range(index);
-
-    %issue date for Trea has to be smaller than
-    %TIPS maturity date.
-    range = range(find(treasury_num(range,12)<tips_num(j,2)));
-    ISIN = treasury((range+1),18); %11 for ISIN
-
+    % find the bond with the smallest difference in maturity versus TIPS 
+    [~, smallest_diff] = min(abs(TIPS{row, 'Maturity'} - ...                          % compute maturity differential
+        new_bond_match{:, 'Maturity'}));   
+    treasury_bond_match = new_bond_match(smallest_diff, :);
+    
+    % issue date for Treasury must be smaller than the TIPS maturity date
+    treasury_bond = treasury_bond_match(treasury_bond_match{:, 'Issue_Date'} ...
+        < TIPS{row, 'Maturity'}, :); 
+    
+    % -----------------------------------------------------------
+    %                Data Matching Construction 
+    % *We make the assumption that me watch only 1 treasury bond*
+    % -----------------------------------------------------------
+    if ~isempty(treasury_bond)
+        database{row,1} = TIPS{row, "CUSIP"};              % current TIPS CUSIP
+        database{row,2} = treasury_bond{:, "CUSIP"};       % current Treasury CUSIP  
+    end
+    % -----------------------------------------------------------
+    
 end
 
-%%
+%% Cleaning Relevant Database for omissions
 
-j = 1;
-range1 = zeros(0,0);
+% omit blank rows (empty rows) from our TIPS-Treasury Match
+index = find(~cellfun(@isempty, database(:, 1)));
+database_clean = database(index, :);
 
-isavailable = zeros(0,0);
-ISIN_ISIN = zeros(0,0);
+% convert cell matrix to table and recast the table rows
+tips_treasury_match = cell2table(database_clean);
 
-while j <= length(tips_num(:,1))
-    if tips_num(j,2) < 37987.00  % if tips matures before 2004 skip it. 
-        j=j+1;
-        continue 
-    end 
-    if tips(j+1,2) == "WITII" %if tips is when-issued, skip it. 
-        j=j+1;
-        continue 
-    end 
-       
-    %get current tips_ISIN
-    tips_ISIN = tips((j+1),18); %11 for ISIN
-    
-    %finds maturity matched bonds (less than or equal 31 days for maturity date)
-    range=find(abs(tips_num(j,2)-treasury_num(:,2))<=31 & abs(treasury_num(:,2)-tips_num(j,2))<=31);
-    range = unique(range);
-    %CUSIPs of all treasury fulfilling above criteria 
-    cusip = treasury(range+1,18);
+tips_treasury_match.Properties.VariableNames = {'TIPS_CUSIP', 'Treasury_CUSIP'}; 
 
-    %if no treasury from above is issued before 01jan2004, find the
-    %earliest issued bond
-    if isempty(find((m2xdate(datenum('01-Jan-2004','dd-mmm-yyyy'),0)-treasury_num(range,12))>0))
-        [~,index] = max(m2xdate(datenum('01-Jan-2004','dd-mmm-yyyy'),0)-treasury_num(range,12));
-        range = range(index);
-    %otherwise find all bonds issued before 01jan2004
-    else
-        range = range(find((m2xdate(datenum('01-Jan-2004','dd-mmm-yyyy'),0)-treasury_num(range,12))>0));
-    end
+% save contents of table to temporary file
+save('Temp/MATCH', 'tips_treasury_match')
 
-    %find the bond with issue date closest to that of the tips
-    [~,index] = min(abs(tips_num(j,12)-treasury_num(range,12)));
-    range = range(index);
-
-    k = 1;
-    while k <= length(treasury(range,18))
-       issue_date = treasury_num(range(k),12)
-       IndexCU = strfind(treasuryp(1,:),treasury(range(k)+1,18)); 
-       IndexC = find(not(cellfun('isempty', IndexCU)));
-       
-       IndexID = find(treasuryp_num(:,IndexC) == issue_date)
-
-       if isnan(treasuryp_num(IndexID+5,IndexC+1))
-           isavailable(k) = 0;
-       else
-           isavailable(k) = 1;
-       end    
-       k = k + 1;
-    end
-    
-    if ~(isempty(range))
-        range = range(find(isavailable));
-    end 
-    
-    %finds abs date difference in maturity on TIPS and Treasuries
-    [val,index] = min(abs(tips_num(j,2)-treasury_num(range,2)));
-    range = range(index);
-
-    %issue date for Trea has to be smaller than
-    %TIPS maturity date.
-    range = range(find(treasury_num(range,12)<tips_num(j,2)));
-    ISIN = treasury((range+1),18); %11 for ISIN
-
-    if isempty(ISIN)
-   
-    else
-        ISIN_ISIN{j,5} = ISIN;
-        ISIN_ISIN{j,6} = datestr(x2mdate(treasury_num(range,2),0));
-        ISIN_ISIN{j,7} = datestr(x2mdate(treasury_num(range,12),0));
-        ISIN_ISIN{j,8} = num2str(treasury_num(range,1));
-    
-        ISIN_ISIN{j,1} = tips_ISIN;
-        ISIN_ISIN{j,2} = datestr(x2mdate(tips_num(j,2),0));
-        ISIN_ISIN{j,3} = datestr(x2mdate(tips_num(j,12),0));
-        ISIN_ISIN{j,4} = num2str(tips_num(j,1));
-    end    
-    
-j = j + 1;
-end
-
-ISIN_ISIN_cusips = ISIN_ISIN(:,[1,5])
-ISIN_ISIN_clean = zeros(0,0)
-i = 1
-j = 1
-while i <= length(ISIN_ISIN_cusips)
-    if ~isempty(string(ISIN_ISIN_cusips{i,1}))
-        ISIN_ISIN_clean{j,1} = ISIN_ISIN_cusips{i,1}
-        ISIN_ISIN_clean{j,2} = ISIN_ISIN_cusips{i,2}
-        j=j+1
-    end 
-    i=i+1
-end 
-
-i=1
-j=1
-while i <= length(ISIN_ISIN_clean)
-    j = 1
-    while j <= 2
-        matches(i,j) = ISIN_ISIN_clean{i,j}
-        j = j + 1
-    end
-    i = i + 1
-end
-
-
-
-
-
-
-
+fprintf('Bond pairs have been created, for U.S. TIPS and Treasuries.\n'); 
