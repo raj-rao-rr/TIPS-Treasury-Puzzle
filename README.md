@@ -68,6 +68,4 @@ Once all data has been updated you are free to run the entire project base. You 
 * TBD 
 
 ## 6	Contributors
-* [Rajesh Rao](https://github.com/Raj9898) (Sr. Research Analyst 22’)
-* [Zachary Kuloszewski](https://sites.google.com/view/zachary-kuloszewski) (Sr. Research Analyst 21’)
-
+* [Rajesh Rao](https://github.com/raj-rao-rr) (Sr. Research Analyst)
