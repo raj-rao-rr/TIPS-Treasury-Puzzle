@@ -1,6 +1,6 @@
 % This code matches STRIPS to each cash-flow date for the U.S. Treasury bonds 
 
-clearvars -except root_dir;
+clearvars -except root_dir inflation_adj_flag winsor_flag;
 
 % Import the STRIPS and Treasury Data Tables, as well as STRIPS prices
 load DATA STRIPS TREASURYS PRICE_S
@@ -68,7 +68,7 @@ for j = 1:T1
                 
                 % if cusip present in STRIP price we strip NaNs and zeros
                 prices = PRICE_S(~isnan(PRICE_S{:, col_name}) & ...
-                    ~any(PRICE_S{:, col_name} == 0), [{'Var1'}, col_name(:)']);       % Var1 is our data column (first column)
+                    ~any(PRICE_S{:, col_name} == 0), col_name(:)');                 
                 
                 % -----------------------------------------------------------
                 % After filtering NaN and Zero (we assume the following)
@@ -76,7 +76,7 @@ for j = 1:T1
                 if isempty(prices)
                    % if no price series is returned (empty) we skip CUSIP
                    isTherePrice(idx, 1) = 0; 
-                elseif sum(prices{:, 'Var1'} <= current_bond.Issue_Date + 5) > 0
+                elseif sum(prices.Dates <= current_bond.Issue_Date + 5) > 0
                    % check to see if the STRIP has prices before or at
                    % (five days after) the issue date of the most recent
                    % bond (we sum to check boolean presense of 1)
@@ -137,7 +137,8 @@ end
 % convert cell matrix to table and recast the table rows
 strips_treasury_match = cell2table(database);
 
-% convert the table column names to match the CUSIPS (in order of iteration)  
+% convert the table column names to match the CUSIPS (in order of iteration) 
+% all column names correspond to unique Treasury CUSIPS 
 strips_treasury_match.Properties.VariableNames = cusips; 
 
 % save contents of table to temporary file

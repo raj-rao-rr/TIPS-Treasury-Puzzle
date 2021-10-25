@@ -1,6 +1,6 @@
 % Reads in data files and stores these variables to a .mat file 
 
-clearvars -except root_dir;
+clearvars -except root_dir inflation_adj_flag winsor_flag;
 
 % creating certificate for web access, extending timeout to 10 seconds 
 o = weboptions('CertificateFilename',"", 'Timeout', 15);
@@ -14,15 +14,22 @@ url = 'https://fred.stlouisfed.org/graph/fredgraph.csv?bgcolor=%23e1e9f0&chart_t
 
 % read web data from FRED and stores it in appropriate file 
 CPI = webread(url, o);
+CPI.MONTH = month(CPI.DATE);
+CPI.YEAR = year(CPI.DATE);
+
 CPI = rmmissing(CPI);
+CPI = table2timetable(CPI);
 
 %% History of Fixed Income Prices (TIPS, Treasury, STRIPS)
 
 PRICE_T = readtable('PRICE_TREASURY.xlsx', 'PreserveVariableNames', true);
+PRICE_T = table2timetable(PRICE_T);
 
 PRICE_TILL = readtable('PRICE_TIPS.xlsx', 'PreserveVariableNames', true);
+PRICE_TILL = table2timetable(PRICE_TILL);
 
 PRICE_S = readtable('PRICE_STRIPS.xlsx', 'PreserveVariableNames', true);
+PRICE_S = table2timetable(PRICE_S);
 
 %% History of Fixed Income Issuance (TIPS, Treasury, STRIPS)
 
@@ -30,14 +37,14 @@ TREASURYS = readtable('TREASURY.xlsx', 'PreserveVariableNames', true);
 
 % fix the datetime arrays with Treasury issuances
 TREASURYS.Maturity = cellfun(@datetime, TREASURYS{:,'Maturity'});
-TREASURYS.First_Coupon_Date = datetime(TREASURYS{:, 'First Coupon Date'});
+TREASURYS.First_Coupon_Date = datetime(TREASURYS{:, 'First Cpn Dt'});
 TREASURYS.Issue_Date = datetime(TREASURYS{:, 'Issue Date'});
 
 TIPS = readtable('TIPS.xlsx', 'PreserveVariableNames', true);
 
 % fix the datetime arrays with TIPS issuances
 TIPS.Maturity = datetime(TIPS{:,'Maturity'});
-TIPS.First_Coupon_Date = datetime(TIPS{:, 'First Coupon Date'});
+TIPS.First_Coupon_Date = datetime(TIPS{:, 'First Cpn Dt'});
 TIPS.Issue_Date = datetime(TIPS{:, 'Issue Date'});
 
 STRIPS = readtable('STRIPS.xlsx', 'PreserveVariableNames', true);
@@ -49,6 +56,11 @@ STRIPS.Issue_Date = datetime(STRIPS{:, 'Issue Date'});
 % filter out columns that aren't reported for STRIPS
 STRIPS = STRIPS(:, ~ismember(STRIPS.Properties.VariableNames, ...
     {'First Coupon Date', 'Cpn Freq Des', 'Amt Issued'}));
+
+% sort the bonds by maturity, earliest maturity to latest
+TREASURYS = sortrows(TREASURYS, 'Maturity');
+TIPS = sortrows(TIPS, 'Maturity');
+STRIPS = sortrows(STRIPS, 'Maturity');
 
 %% Inflation Swaps Data, taken from Bloomberg
 
@@ -106,6 +118,8 @@ SWAPS = col_order{1};
 for k = 2:length(col_order)
    SWAPS = innerjoin(col_order{k}, SWAPS); 
 end
+
+SWAPS = table2timetable(SWAPS);
 
 %% Save all variables in *.mat file to be referenced
 

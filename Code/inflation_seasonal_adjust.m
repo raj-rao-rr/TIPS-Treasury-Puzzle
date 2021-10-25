@@ -1,127 +1,152 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% This code calculates and applies the seasonal adjustments to the
-% zero-coupon inflation swap qoutes and performs the cubic spline
-% interpolation
-%
-% Last Edit: 2/26/2021
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% This code calculates and applies the seasonal adjustments to the zero-coupon 
+% inflation swap qoutes and performs the cubic spline interpolation
 
-clearvars -except root_dir;
+clearvars -except root_dir inflation_adj_flag winsor_flag;
 
-%%
+% Import the Zero Coupon Inflation Swaps and CPI Data Tables
+load DATA SWAPS CPI 
 
-% Loads the zero-coupon inflation swap quotes 
-if strcmp(mode, 'student_old')
-    [num,str] = xlsread([data_dir '\INFLATION SWAP CURVES\DATA\ZC INFLATION SWAP CURVES_numberversion_REVERSED'],1);
-else
-    [num,str] = xlsread([data_dir 'INFLATION SWAP CURVES\ZC INFLATION SWAP CURVES.xlsx'],1); 
-end
-% Loads the non-seasonal adjusted index values
-[cpi] = xlsread([data_dir 'CPI INDEX\CPIAUCNS.xls'],1);
 
-rates = num;
-rates(1,1) = 0;
+%% compute the inflation seasonality factors
 
-logchanges = log(cpi(2:end,2)./cpi(1:end-1,2));
-m = month(x2mdate(cpi(1:end-1,1),0));
-d = dummyvar(m);
+% compute log changes for CPI retrieved from FRED website
+log_changes = log(CPI{2:end, 'CPIAUCNS'}) - log(CPI{1:end-1, 'CPIAUCNS'});
 
-%regression
-[b] = regress(logchanges,d);
-bMean=mean(b);
-seasonalFac=b-bMean;
+m = month(CPI.DATE(2:end));              % extracts month for season inflation
+d = dummyvar(m);                  % converts interval to dummy variables
 
-%Multiplicative factors and Normalization
-MultFact = seasonalFac+1; 
+% regress CPI log changes to month dummy variables (seasonality)
+% NOTE: The regression returns [coefficients, 95% confidence intervals, residuals, 
+%       outlier index, statistics(R-squared, F-statistics, p-value)]
 
-%Cubic spline interpolation of zero-coupon inflation swap curves
-x = rates(1,2:end);
-month = 1/12;
-xx = 0:month:30;
-k = 1;
-j = 1;
-interpolatedSwapPoints = [0,xx];
-baddates = zeros(0,0);
-while k <= length(rates(2:end,1))
-    y = rates(k+1,2:end);
-    date = rates(k+1,1);
-        try
-        yy = spline(x,y,xx);
-        interpolatedSwapPoints = [interpolatedSwapPoints;[date, yy]];
-        catch exception
-        baddates(j,1) = date;
-        j = j + 1;
-        end
-    k = k + 1;
-end
+[b,~,~,~,~] = regress(log_changes, d);      
+coef_mean = mean(b);                        % compute the average seasonal beta
+seasonal_factor = b - coef_mean;            % adjust beta-coef by seasonal avg.
 
-%Creates the forward rates
-l = 1; 
-m = 1;
-forwardSwap = zeros(0,0);
-while l <= length(interpolatedSwapPoints(2:end,1)) % downwards, # of curves
+% multiplicative factors and normalization (12-month seasonality)
+mult_fact = seasonal_factor + 1; 
 
-    while m <= length(interpolatedSwapPoints(1,14:end)) %along the curve
-        if m == 1 %the 1 year forward is just the spot
-            forwardSwap(l,m:13) = interpolatedSwapPoints(l+1,2:14)/100;
-            m = m + 1;
-        else
-        forwardSwap(l,m+12) = ((1+(interpolatedSwapPoints(l+1,m+13)/100))^(m) / ...
-            (1+(interpolatedSwapPoints(l+1,m+12)/100))^(m-1))-1;
-        %Formula taken from Claus Munk, "Financial Markets and Investments", p. 171.
-        m = m + 1;
-        end
+%% cubic spline interpolation of zero-coupon inflation swap curves
+
+% strip the numeric component of column and convert to matrix
+x = cellfun(@(x) str2double(x(5:end-1)), SWAPS.Properties.VariableNames, ...
+    'UniformOutput', false);
+x = cell2mat(x);
+
+increment = 1/12;           
+xx = 0:increment:30;   
+
+% initialize the memory for the interpolated swap points
+interpolated_pts = zeros(size(SWAPS, 1), length(xx));  
+
+% iterate through each of the corresponding rates
+for k = 1:size(SWAPS, 1)
+    
+    y = SWAPS{k, :};                              % zero-coupon inflation swap
+
+    try
+        yy = spline(x, y, xx);                    % perform the cubic spline
+        interpolated_pts(k, :) = yy;              % assign open row to spline
+    catch exception
+        interpolated_pts(k, :) = interpolated_pts(k, :) * NaN; 
     end
-    l = l + 1;
-    m = 1;
+    
 end
 
-%Applies the seasonal multiplicative factor
-n = 1;
-i = 1;
-adjustedForward = zeros(0,0);
-while n <= 29 %number of years on the curve 
-    while i <= length(forwardSwap(:,1))
-        result = (forwardSwap(i,(((n-1)*12)+1)+12:(n*12)+12)).*MultFact'; 
-        adjustedForward(i,(((n-1)*12)+1):n*12) = result;  
-        i = i + 1; 
+%% create the forward rates from interpolated swap points
+
+% index where the 1-yr inflation swap starts (checks the first row)
+one_year_mrk = find(xx == 1);   
+[N, M] = size(interpolated_pts);                 
+
+% initialize forward swap container
+forward_swap = zeros(N, M); 
+
+for row = 1:N
+    
+    % assign the zero-coupon inflation swaps with maturity 1-year and under  
+    forward_swap(row, 1:one_year_mrk) = interpolated_pts(row, 1:one_year_mrk) / 100;
+
+    % assign all maturities over 1-year to the computed forward rate
+    % NOTE: refer. Claus Munk, "Financial Markets and Investments", p. 171.
+    m = 2:(M-one_year_mrk+1);
+    num = (1 + (interpolated_pts(row, one_year_mrk+1:end) / 100)) .^ (m);             % numerator expression 
+    den = (1 + (interpolated_pts(row, one_year_mrk:end-1) / 100)) .^ (m-1);           % denominator expression
+    
+    % assign the forward rate computation for all points post 1-yr inflation swap 
+    forward_swap(row, one_year_mrk+1:end) = (num ./ den) - 1;                                
+    
+end
+
+%% applies the seasonal multiplicative factor to forwards
+
+% initialize the adjusted forward swap container 
+adj_forward_swap = forward_swap(:, 2:end);          % zero-year tenor ignored  
+
+for row = 1:size(adj_forward_swap, 1)
+    
+    % iterate through the tenors of the inflation curve
+    for n = 1:29
+
+        look_back = n * 12 + 1;             % n * 12 to view current year, + 1 to 
+                                            %   start at year start
+        look_forward = (n + 1) * 12;        % (n + 1) * 12 to view the next year, 
+
+        % apply multiplicative adjustment to forward rates
+        adjustment = forward_swap(row, look_back:look_forward) .* mult_fact'; 
+
+        % assign each seasonal adjusted rate to the corresponding column
+        adj_forward_swap(row, look_back:look_forward) = adjustment;
+
     end
-    i = 1;
-    n = n + 1;
+    
 end
 
-adjustedForward = [forwardSwap(:,2:13), adjustedForward]; %the zero year tenor is ignored
+%% transforms the forward rates back into spot rates
 
-%Transforms the forward rates back into spot rates
-h = 1;
-f = 1;
-AdjustedSwapcurve = zeros(0,0);
-while f <= length(adjustedForward(:,1)) %downwards, # of curves
-    while h <= length(adjustedForward(1,13:end)) % a long each curve
-        if h == 1
-            AdjustedSwapcurve(f,1:13) = adjustedForward(f,1:13);
-            h = h + 1;
-        else
-            AdjustedSwapcurve(f,h+12) = prod(adjustedForward(f,13:h+12)+1)^(1/h)-1;
-            
-            %(((interpolatedSwapPoints(f+1,2)/100)+1)*prod(adjustedForward(f,1:h)+1))^(1/(h+1))-1;
-            %Formula taken from Claus Munk, "Financial Markets and Investments", p. 171.
-            h = h + 1; 
-        end
+% initialize the adjusted swap curve (our sub-1yr columns are a direct match)
+adj_swap_curve = adj_forward_swap;
+
+for row = 1:size(adj_swap_curve, 1)
+    
+    % for all columns less than or equal to 1-yr in maturity, we assign
+    adj_swap_curve(row, 1:12) = adj_forward_swap(row, 1:12);
+    
+    for h = 13:size(adj_swap_curve, 2)
+        % Formula taken from Claus Munk, "Financial Markets and Investments", p. 171.
+        adj_swap_curve(row, h) = prod(adj_forward_swap(row, 12:h) + 1) ^ (1/h) - 1;
     end
-    h = 1;
-    f = f + 1;
+    
 end
 
-dates = num(2:end,1);
-AdjustedSwapcurve_withdates = [dates, AdjustedSwapcurve];
-months = 0:1/12:30;
-AdjustedSwapcurve_withmonths = vertcat(months, AdjustedSwapcurve_withdates);
+%% reporting relevant database for inflation swap curve
 
+% convert cell matrix to table and recast the table rows
+interval = num2cell(0:1/12:30);
+interval = cellfun(@(x) round(x, 2) + "y", interval);
 
+interpolated_pts = array2table(interpolated_pts, 'VariableNames', interval);
+interpolated_pts.Date = SWAPS.Date;
+interpolated_pts = movevars(interpolated_pts, 'Date', 'Before', '0y');
+interpolated_pts = table2timetable(interpolated_pts); 
 
+forward_swap = array2table(forward_swap, 'VariableNames', interval);
+forward_swap.Date = SWAPS.Date;
+forward_swap = movevars(forward_swap, 'Date', 'Before', '0y');
+forward_swap = table2timetable(forward_swap); 
 
+adj_forward_swap = array2table(adj_forward_swap, 'VariableNames', interval(2:end));
+adj_forward_swap.Date = SWAPS.Date;
+adj_forward_swap = movevars(adj_forward_swap, 'Date', 'Before', '0.08y');
+adj_forward_swap = table2timetable(adj_forward_swap); 
 
+adj_swap_curve = array2table(adj_swap_curve, 'VariableNames', interval(2:end));
+adj_swap_curve.Date = SWAPS.Date;
+adj_swap_curve = movevars(adj_swap_curve, 'Date', 'Before', '0.08y');
+adj_swap_curve = table2timetable(adj_swap_curve); 
 
+% save contents of table to temporary file
+save('Temp/INFADJ', 'interpolated_pts', 'forward_swap', 'adj_forward_swap', ...
+    'adj_swap_curve')
 
-
+fprintf('Fitted the seasonally adjusted zero-coupon inflation swap curve\n'); 

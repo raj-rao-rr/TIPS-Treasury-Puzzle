@@ -1,6 +1,6 @@
 % This code generates all the cash-flow dates for all the Treasury bonds
 
-clearvars -except root_dir;
+clearvars -except root_dir inflation_adj_flag winsor_flag;
 
 % Import the Treasury Data table
 load DATA TREASURYS
@@ -39,7 +39,7 @@ for i = 1:T
         filter_treasury{:, 'First_Coupon_Date'}); 
     
     % stores the cash flow dates for each corresponding CUSIP
-    cashflow_dates(1:length(CFlowDates), i) = cellstr(transpose(CFlowDates));
+    cashflow_dates(1:length(CFlowDates), i) = cellstr(CFlowDates');
     
 end
 

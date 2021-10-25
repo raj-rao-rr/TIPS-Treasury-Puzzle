@@ -1,5 +1,5 @@
-%This code is generates the aggregate average mispricing across all
-%maturities and on the three maturity buckets
+% This code is generates the aggregate average mispricing across all
+% maturities and on the three maturity buckets
 
 clearvars -except root_dir;
 

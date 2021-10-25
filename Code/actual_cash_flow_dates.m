@@ -1,62 +1,61 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% This code defines the actual cash-flow dates of the synthetic Treasury
-% bond
-%
-% Last Edit: 2/26/2021
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% This code defines the actual cash-flow dates of the synthetic Treasurys 
 
-clearvars -except root_dir;
+clearvars -except root_dir inflation_adj_flag winsor_flag;
 
-%%
+% Import the STRIPS Data Tables
+load DATA STRIPS 
 
-%Loads the link table between Treasuries and STRIPS
-[~,TreasurySTRIPs]  = xlsread([data_dir, bond_excel],strip_sheet);
+% Import the STRIPS and Treasury pairs as well as cash flow dates
+load MATCH strips_treasury_match 
 
-%Loads the overview table of all STRIPS 
-[strips_num,strips] = xlsread([data_dir, bond_excel],3);
 
-actualCashflowDates = zeros(0,0);
-i = 1;
-while i <= length(TreasurySTRIPs(1,:))
-    h = 1;
-    IndexS = strfind(TreasurySTRIPs(:,i),']');
-    Indexs = find(not(cellfun('isempty', IndexS)));
-    filledindexes = setdiff(1:length(TreasurySTRIPs(:,i)),Indexs);
-    currenttretostrip = TreasurySTRIPs(filledindexes,i);
-    emptyCells = cellfun(@isempty,currenttretostrip);
-    currenttretostrip(emptyCells) = [];
-    while h <= length(currenttretostrip(2:end,1))
-        currentStrip = currenttretostrip(h+1,1);
-        % added another apostrophe as excel has 'NO DATA'' 
-        if strcmp(currentStrip,{'NO DATA'''}) 
-            actualCashflowDates(h,i) = 1;
-        elseif strcmp(currentStrip,{'NO DATA'}) 
-            actualCashflowDates(h,i) = 1;
+%% loop through bonds to store coupon payment dates
+
+% treasury cusips corresponding to columns in .mat
+cusips = strips_treasury_match.Properties.VariableNames;
+[~, T1] = size(cusips);
+
+% initialize memory for storing actual cash flow dates
+database = cell(1,T1);
+
+% iterate through the Treasury CUSIPS
+for i = 1:T1
+    current_cusip = cusips(i);      % current Treasury CUSIPS 
+    
+    % select all strips that corresponds to the Treasury CUSIPS
+    current_strip = strips_treasury_match{:, current_cusip}; 
+    active_strips = current_strip(~cellfun('isempty', current_strip));                % remove all empty rows  
+    
+    % iterate through each active STRIP match to Treasury
+    for j = 1:length(active_strips')
+        strip = active_strips(j);               % CUSIP corresponding to STRIP
+        
+        % check whether strip is present in CUSIP vector
+        if ismember(strip{:}, STRIPS{:, 'CUSIP'})
+            % find maturity date for STRIP that correspond to CUSIP
+            database(j, i) = cellstr(STRIPS{ismember(STRIPS{:, 'CUSIP'}, strip{:}), ...
+                'Maturity'});
         else
-            IndexC = strfind(strips(:,9),currentStrip);
-            Index = find(not(cellfun('isempty', IndexC)));
-            % finds maturity date for strips
-            actualCashflowDates(h,i) = strips_num(Index-1,2);
-        end    
-        h = h + 1;
+            database(j, i) = 0;      % if CUSIP not present we skip
+        end
+        
     end
-    i = i + 1;
+    
+    % NOTE: For each Treasury Bond, actual cash fow dates lists the maturity 
+    %       dates of all STRIPS matched to the coupon dates of a given Treasury.
+    
 end
 
+%% Reporting relevant database for matches
 
-% FOR EACH TREASURY BOND, actualCashflowDates LISTS THE MATURITY DATES OF
-% ALL STRIPS MATCHED TO ITS COUPON DATES, and TreasurySTRIPs LISTS STRIPS
-% CUSIPS THEMSELVES
+% convert cell matrix to table and recast the table rows
+actual_cashflow_dates = cell2table(database);
 
+% convert the table column names to match the CUSIPS (in order of iteration) 
+% all column names correspond to unique Treasury CUSIPS that we search for
+actual_cashflow_dates.Properties.VariableNames = cusips; 
 
+% save contents of table to temporary file
+save('Temp/MATCH', 'actual_cashflow_dates', '-append')
 
- 
-
-
-
-
-
-
-
-
-
+fprintf('Actual cash flow dates have been created\n'); 

@@ -1,43 +1,43 @@
-function runIntersect = mintersect(varargin)
-%MINTERSECT Multiple set intersection.
-%   MINTERSECT(A,B,C,...) when A,B,C... are vectors returns the values 
-%   common to all A,B,C... The result will be sorted.  A,B,C... can be cell
-%   arrays of strings.  
-%
-%   MINTERSECT repeatedly evaluates INTERSECT on successive pairs of sets, 
-%   which may not be very efficient.  For a large number of sets, this should
-%   probably be reimplemented using some kind of tree algorithm.
-%
-%   MINTERSECT(A,B,'rows') when A,B,C... are matrices with the same
-%   number of columns returns the rows common to all A,B,C...
-%
-%   See also INTERSECT
+% 
+% Author, Rajesh Rao 
+% 
+% Performs a set intersection against multiple vectors
+% 
+% MINTERSECT repeatedly evaluates INTERSECT on successive pairs of sets, 
+% which may not be very efficient.  For a large number of sets, this should
+% probably be reimplemented using some kind of tree algorithm.
+% 
+% See also the Matlab INTERSECT function
+% ------------------------------------------------------------------------
+% 
+% Inputs:
+%   :param: varargin (type array) - N X 1 vector
+%       Accepts a variable number of array arguments, each with N rows
+%       e.g. mintersect(A,B,C,...) where A,B,C... are numeric vectors 
+% 
+% Output:
+%   :param: intersections (type array) - M x 1 vector
+%       Intersection amongst all provided arrays to the function 
+% 
 
-flag = 0;
-if isempty(varargin),
-    error('No inputs specified.')
-else
-    if isequal(varargin{end},'rows'),
-        flag = 'rows';
-        setArray = varargin(1:end-1);
-    else
-        setArray = varargin;
-    end
-end
 
-runIntersect = setArray{1};
-for i = 2:length(setArray),
+function intersections = mintersect(varargin)
+
+    % error checking through assertions of input argument
+    assert(~isempty(varargin), 'No inputs are specified');
     
-    if isequal(flag,'rows'),
-        runIntersect = intersect(runIntersect,setArray{i},'rows');
-    elseif flag == 0,
-        runIntersect = intersect(runIntersect,setArray{i});
-    else 
-        error('Flag not set.')
-    end
+    % initialize the first interesection set
+    intersections = varargin{1};
     
-    if isempty(runIntersect),
-        return
+    % iterate through each of the input array arguments
+    for arg = 2:length(varargin)
+
+        % compute the iterative intersection of each array argument
+        % NOTE: If alternating argument types are provided that are not
+        %       compatible with the parameters of the intersect function we
+        %       raise an error, caught as an Error using intersect
+        intersections = intersect(intersections, varargin{arg});
+        
     end
     
 end
