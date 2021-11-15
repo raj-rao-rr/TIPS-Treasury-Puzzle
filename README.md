@@ -1,5 +1,9 @@
 # TIPS-Treasury-Puzzle
 
+```diff
+- IN PROGRESS DUE TO FAILED REPLICATION
+```
+
 ## 1	Introduction
 We construct a mispricing series as outlined in Hanno Lustig, Matthias Fleckenstein, Francis A. Longstaff 2014 paper, entitled “The TIPS-Treasury Bond Puzzle.” We look to extend their computed series as examine its response function over time as a function of various economically significant shocks. This repository is still in progress and will be subject to change in future.
 
@@ -56,11 +60,17 @@ Data Fields that are automatically updated from HTML connections
 
 **II. Pull New Price Data**
 
-  1. Begin by copying the CUSIPS from each excel file (e.g. TIPS.xlsx) onto an empty excel file and concat each with the " Govt" string to the end of each CUSIP. These strings will be the Bloomberg IDs used to retrieve historical prices. 
+  1. Begin by copying the CUSIPS from each bond excel file (e.g. TIPS.xlsx) onto an empty excel file and concat each with the " Govt" string to the end of each CUSIP. These strings will be the Bloomberg IDs used to retrieve historical prices. 
 
-  2. In the same excel file, transpose the vertical array of CUSIPS and with an active Bloomberg Session open the Spreadsheet Builder tool to retrieve historical prices 
+  2. In the same excel file, transpose the vertical array of CUSIPS in cell `A1` and with an active Bloomberg Session, continue with the following: 
+  
+      1. Click on the Spreadsheet Builder from the Bloomberg tab and select the Historical Data Table.
+      2. Select all securities that you have copied and transposed over from the first Sheet as the Selected Securities.
+      3. Search for the Last Price field from the search box and select it, this will return the last traded price for the security.
+      4. Enter the furthest date you would like to retrieve prices for, this is our start date.
+      5. Select only to Show Date and Show Security from the preview screen and press the finish button.
 
-  3. After retrieving historical prices, "Copy" the entire dataseries and "Paste Values". Follow by performing a Find and Replace on `#N/A N/A` (Bloomberg parse error)
+  3. After retrieving historical prices, "Copy" the entire dataseries and "Paste Values" at the same location. Follow by performing a Find and Replace on `#N/A N/A` (Bloomberg parse error). This process will take a long time to complete, and may cause excel to not respond in the process, depending on the number of securities queried. In future this process WILL be improved
   
   4. Finally, save each price series set for the accompanying security under the price handle. We currently use the convention "PRICES_XXX" where "XXX" is the fixed income security examined (i.e. TIPS, Treasury, STRIPS) 
 
@@ -77,7 +87,8 @@ Once all data has been updated you are free to run the entire project base. You 
   ```
   
 ## 5	Possible Extensions
-* TBD 
+* Currently there are issues in replication due to negative synthethic bond prices (see compute_mispricing.m) 
+* Work to improve the method for collecting Bloomberg price data to be more efficient, and less suceptible to hard data querying limits  
 
 ## 6	Contributors
 * [Rajesh Rao](https://github.com/raj-rao-rr) (Sr. Research Analyst)
