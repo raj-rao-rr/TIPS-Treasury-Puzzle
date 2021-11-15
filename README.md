@@ -1,27 +1,39 @@
 # TIPS-Treasury-Puzzle
-Replication of  Hanno Lustig, Matthias Fleckenstein, Francis A. Longstaff 2014 paper. Code has been adopted from **[Insert Name]**
 
 ## 1	Introduction
-* TBD
+We construct a mispricing series as outlined in Hanno Lustig, Matthias Fleckenstein, Francis A. Longstaff 2014 paper, entitled “The TIPS-Treasury Bond Puzzle.” We look to extend their computed series as examine its response function over time as a function of various economically significant shocks. This repository is still in progress and will be subject to change in future.
 
 ## 2	Software Dependencies
 *	MATLAB 2020a with the following toolboxes (Econometrics, Optimization, Financial)
 *	Bloomberg Professional Services for historical data
-*	Matlab system environment with at least 3 GB of memory
+*	MATLAB system environment with at least 3 GB of memory
 
 ## 3	Code Structure
 
 ### 3.1 	`/Code`
-* TBD
+All project code is stored in the `/Code` folder for generating figures and performing analysis. Refer to the headline comment string in each file for a general description of the purpose of the script in question.
+
+* `/.../lib/` stores functions derived from academic papers or individual use to compute statistical tests or perform complex operations. Please refer to the in function documentation for each .m function for granular detail on function arguments and returns.
 
 ### 3.2 	`/Input`
-* TBD
+Folder for all unfiltered, raw input data for financial time series.
+
+* *INFLATION_SWAPS.xlsx* contains Bloomberg formulas to retrieve USD inflation swap data from 1y-30y maturities
+* *PRICE_XXX.xlsx* contains prices data for corresponding fixed income instrument, where "XXX" refers to either STRIPS, TIPS or TREASURY
+* *STRIPS.xlsx*, *TIPS.xlsx*, and *TREASURY.xlsx* store active and matured bond data for each respective fixed income instrument as per naming convention  
 
 ### 3.3 	`/Temp`
-* TBD
+Folder for storing data files after being read and cleaned of missing/obstructed values.
+
+* DATA.mat price series including data from FRED, monetary shocks, and U.S. GSW rates, etc
+* INFADJ.mat forward and adjusted swap curves as computed from the zero-coupon inflation swaps
+* MATCH.mat stores all matched series connecting TIPS, Treasuries and STRIPS for corresponding coupon windows
 
 ### 3.4 	`/Output`
-* TBD
+Folder and sub-folders are provided to store graphs and tables for forecasts, regressions, etc.
+
+* `/.../mispricing_results/` stores all mispricing computations for each correpsonding Treasury CUSIP, all corresponding .csv file follow the naming convention *student_adjusted_XXX.csv* where "XXX" represents the Treasury CUSIP
+* `bps_mp_by_maturity.mat` stores final outputs for both aggregated and disaggregated mispricing time series 
 
 ## 4	Running Code
 
