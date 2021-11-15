@@ -48,19 +48,17 @@ Data Fields that are automatically updated from HTML connections
 
   1. Login into your Bloomberg Professional Service account, you will need it to retrieve historical data.
 
-  2. Go to the Bloomberg terminal and type SRCH <GO> to bring up the Fixed Income Security Search function, add “Ticker” as a search field and enter oen of the corresponding tickers provided (**T = U.S. Treasury Note/Bond**, **TII = U.S. TIPS**, **S = U.S. STRIP**) to retrieve data for one set. 
+  2. Go to the Bloomberg terminal and type SRCH <GO> to bring up the Fixed Income Security Search function. Add “Ticker” as a search field and enter the ticker necessary (T for Treasury, TII for TIPS, S for STRIPS). Add “Sovereign” as another search field to ensure that all bonds returned are strictly government issued (i.e., T also points to AT&T corporate bonds without this additional field). 
 
-  3. Change the universe of bonds from “Active” to “Active and Matured” to pull the entire history of bonds issued. 
+  3. Change the universe of bonds to include both “Active” to and “Matured” to pull the entire history of bonds issued.
 
   4. Click on the results tab and then start to modify the columns shown in the results by adjusting the settings. We should be seeing the following columns (Issuer, Name, Ticker,	Cpn	Maturity,	Maturity Type,	Currency,	Country (Full Name),	First Coupon Date,	Cpn Freq Des,	Coupon Type,	ISIN,	Amt Issued,	Amt Out,	Issue Date,	Security Name,	Calc Type,	Day Count,	CUSIP,	Market Type).
 
-  5. Filter out only "US GOVERNMENT" securities from the "Market Type" column before exporting to an excel file.
-
-  6. Repeat step 5 for each the tickers shown. We should have a seperate file for TIPS, Treasury and STRIPS data, each labeled accordingly.   
+  5. Repeat step 5 for each the tickers shown. We should have a separate file for TIPS, Treasury and STRIPS data, each labeled accordingly.   
 
 **II. Pull New Price Data**
 
-  1. Begin by copying the CUSIPS from each bond excel file (e.g. TIPS.xlsx) onto an empty excel file and concat each with the " Govt" string to the end of each CUSIP. These strings will be the Bloomberg IDs used to retrieve historical prices. 
+  1. Begin by copying the CUSIPS from each bond excel file (e.g. TIPS.xlsx) onto an empty excel file and concatenate each with the " Govt" string to the end of each CUSIP. These strings will be the Bloomberg IDs used to retrieve historical prices. 
 
   2. In the same excel file, transpose the vertical array of CUSIPS in cell `A1` and with an active Bloomberg Session, continue with the following: 
   
@@ -70,24 +68,24 @@ Data Fields that are automatically updated from HTML connections
       4. Enter the furthest date you would like to retrieve prices for, this is our start date.
       5. Select only to Show Date and Show Security from the preview screen and press the finish button.
 
-  3. After retrieving historical prices, "Copy" the entire dataseries and "Paste Values" at the same location. Follow by performing a Find and Replace on `#N/A N/A` (Bloomberg parse error). This process will take a long time to complete, and may cause excel to not respond in the process, depending on the number of securities queried. In future this process WILL be improved
+  3. After retrieving historical prices, "Copy" the entire data series and "Paste Values" at the same location. Follow by performing a Find and Replace on `#N/A N/A` (Bloomberg parse error). This process will take a long time to complete and may cause excel to not respond in the process, depending on the number of securities queried. In future this process WILL be improved
   
-  4. Finally, save each price series set for the accompanying security under the price handle. We currently use the convention "PRICES_XXX" where "XXX" is the fixed income security examined (i.e. TIPS, Treasury, STRIPS) 
+  4. Finally, save each price series set for the accompanying security under the price handle. We currently use the convention "PRICES_XXX" where "XXX" is the fixed income security examined (i.e., TIPS, Treasury, STRIPS) 
 
 **III. Pull New Inflation Swap Price Data**
 
-  1. Update the inflation swap prices by opening the INFLATION_SWAPs.xlsx file and hitting Refresh on the Bloomberg tab. The timeseries orientation is handled by Matlab scripts from the raw data pulls. 
+  1. Update the inflation swap prices by opening the INFLATION_SWAPs.xlsx file and hitting Refresh on the Bloomberg tab. The timeseries orientation is handled by MATLAB scripts from the raw data pulls. 
 
 **IV. Run the `main.m` script**
 
-Once all data has been updated you are free to run the entire project base. You may opt to run the main.m file in a Matlab interactive session or via terminal on your local machine or HPC cluster.
+Once all data has been updated you are free to run the entire project base. You may opt to run the main.m file in a MATLAB interactive session or via terminal on your local machine or HPC cluster.
   ```
-  % %    e.g. running code via batch on the FRBNY RAN HPC Cluster
+  % %    e.g., running code via batch on the FRBNY RAN HPC Cluster
   $ matlab20a-batch-withemail 10 main.m 
   ```
   
 ## 5	Possible Extensions
-* Currently there are issues in replication due to negative synthethic bond prices (see compute_mispricing.m) 
+* Currently there are issues in replication due to negative synthetic bond prices (see compute_mispricing.m) 
 * Work to improve the method for collecting Bloomberg price data to be more efficient, and less suceptible to hard data querying limits  
 
 ## 6	Contributors
