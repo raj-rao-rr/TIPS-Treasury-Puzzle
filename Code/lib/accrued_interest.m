@@ -12,10 +12,10 @@
 %       the current date in the timeseries
 %   :param: FirstCouponDate (type datetime)
 %       First cupon data of the security being observed
-%   :param: FaceValue (type float)
-%       Face value of the security, we default to 100
 %   :param: Coupon (type float)
 %       Coupon rate of the security being observed
+%   :param: Maturity (type datetime)
+%       Maturity date for the underlying bond
 % 
 % Output:
 %   :param: acrI (type float) - 1x1
@@ -23,16 +23,23 @@
 % 
 
 function [acrI] = accrued_interest(IssueDate, Settlement, ...
-    FirstCouponDate, FaceValue, Coupon, Maturity)
+    FirstCouponDate, Coupon, Maturity)
     
     % check to see Issue date before first coupon and settlement
     if (IssueDate <= Settlement) && (IssueDate <= FirstCouponDate) && ...
             (Settlement <= Maturity)
 
         % compute accrued interest and map to correct index
-        % 2 = semi-annual coupon, 0 = ACT/ACT day count basis
-        acrI = acrubond(IssueDate, Settlement, FirstCouponDate, ...
-            FaceValue, Coupon, 2, 0); 
+        % 2 = semi-annual coupon, 0 = ACT/ACT day count basis, 0 = EndMonthRule
+        NextCouponDate = cpndaten(Settlement, Maturity, 2, 0, 0, ...
+            IssueDate, FirstCouponDate);
+        PreviousCouponDate = cpndatep(Settlement, Maturity, 2, 0, 0, ...
+            IssueDate, FirstCouponDate);
+
+        daysInCouponPeriod = daysact(PreviousCouponDate, NextCouponDate);
+        accruedDays = daysact(PreviousCouponDate, Settlement);
+        accrualFactor = accruedDays / daysInCouponPeriod;
+        acrI = (Coupon / 2) * accrualFactor;
         
     else
         acrI = 0;   % default to Zero accrued interest

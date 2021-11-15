@@ -21,6 +21,7 @@ inflation_adj_flag = false;       % toggle for base inflation adjustment
 winsor_flag        = false;       % toggle for winsorizing individual pair results  
 
 %% running project scripts in synchronous order 
+
 % run('data_reader.m')                   % Reads in updated bond and swap data
 % run('match_tips_treasury.m')           % Match TIPS and Treasury Issues
 % run('cash_flow_dates.m')               % Calculate coupon payment dates for UST 

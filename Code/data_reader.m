@@ -8,6 +8,9 @@ o = weboptions('CertificateFilename',"", 'Timeout', 15);
 % sets current date time to retrieve current information
 currentDate = string(datetime('today', 'Format','yyyy-MM-dd'));
 
+fprintf('\n1) Downloading data and processing securities.\n'); 
+
+
 %% Consumer Price Index for All Urban Consumers, taken from FRED
 
 url = 'https://fred.stlouisfed.org/graph/fredgraph.csv?bgcolor=%23e1e9f0&chart_type=line&drp=0&fo=open%20sans&graph_bgcolor=%23ffffff&height=450&mode=fred&recession_bars=on&txtcolor=%23444444&ts=12&tts=12&width=1168&nt=0&thu=0&trc=0&show_legend=yes&show_axis_titles=yes&show_tooltip=yes&id=CPIAUCNS&scale=left&cosd=1913-01-01&coed=' + currentDate + '&line_color=%234572a7&link_values=false&line_style=solid&mark_type=none&mw=3&lw=2&ost=-99999&oet=99999&mma=0&fml=a&fq=Monthly&fam=avg&fgst=lin&fgsnd=' + currentDate + '&line_index=1&transformation=lin&vintage_date=' + currentDate + '&revision_date=' + currentDate + '&nd=1913-01-01';
@@ -20,17 +23,6 @@ CPI.YEAR = year(CPI.DATE);
 CPI = rmmissing(CPI);
 CPI = table2timetable(CPI);
 
-%% History of Fixed Income Prices (TIPS, Treasury, STRIPS)
-
-PRICE_T = readtable('PRICE_TREASURY.xlsx', 'PreserveVariableNames', true);
-PRICE_T = table2timetable(PRICE_T);
-
-PRICE_TILL = readtable('PRICE_TIPS.xlsx', 'PreserveVariableNames', true);
-PRICE_TILL = table2timetable(PRICE_TILL);
-
-PRICE_S = readtable('PRICE_STRIPS.xlsx', 'PreserveVariableNames', true);
-PRICE_S = table2timetable(PRICE_S);
-
 %% History of Fixed Income Issuance (TIPS, Treasury, STRIPS)
 
 TREASURYS = readtable('TREASURY.xlsx', 'PreserveVariableNames', true);
@@ -39,6 +31,7 @@ TREASURYS = readtable('TREASURY.xlsx', 'PreserveVariableNames', true);
 TREASURYS.Maturity = cellfun(@datetime, TREASURYS{:,'Maturity'});
 TREASURYS.First_Coupon_Date = datetime(TREASURYS{:, 'First Cpn Dt'});
 TREASURYS.Issue_Date = datetime(TREASURYS{:, 'Issue Date'});
+TREASURYS = TREASURYS(ismember(TREASURYS{:, 'Mty Type'}, 'NORMAL'), :);               % remove weird maturity types (e.g. callable)
 
 TIPS = readtable('TIPS.xlsx', 'PreserveVariableNames', true);
 
@@ -61,6 +54,21 @@ STRIPS = STRIPS(:, ~ismember(STRIPS.Properties.VariableNames, ...
 TREASURYS = sortrows(TREASURYS, 'Maturity');
 TIPS = sortrows(TIPS, 'Maturity');
 STRIPS = sortrows(STRIPS, 'Maturity');
+
+%% History of Fixed Income Prices (TIPS, Treasury, STRIPS)
+
+PRICE_T = readtable('PRICE_TREASURY.xlsx', 'PreserveVariableNames', true);
+PRICE_T = table2timetable(PRICE_T);
+
+% filter corresponding Treasury's that match NORMAL maturity types
+filter_cusips = (TREASURYS{:, 'CUSIP'} + " Govt")';
+PRICE_T = PRICE_T(:, filter_cusips);
+
+PRICE_TILL = readtable('PRICE_TIPS.xlsx', 'PreserveVariableNames', true);
+PRICE_TILL = table2timetable(PRICE_TILL);
+
+PRICE_S = readtable('PRICE_STRIPS.xlsx', 'PreserveVariableNames', true);
+PRICE_S = table2timetable(PRICE_S);
 
 %% Inflation Swaps Data, taken from Bloomberg
 
@@ -125,5 +133,3 @@ SWAPS = table2timetable(SWAPS);
 
 save('Temp/DATA', 'CPI', 'SWAPS', 'TREASURYS', 'STRIPS', 'TIPS', 'PRICE_T', ...
     'PRICE_TILL', 'PRICE_S')
-
-fprintf('Data has been downloaded and processed.\n'); 

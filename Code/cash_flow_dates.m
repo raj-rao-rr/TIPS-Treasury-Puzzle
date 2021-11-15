@@ -11,6 +11,8 @@ load MATCH tips_treasury_match
 
 %% loop through bonds to store coupon payment dates
 
+fprintf('\n3) Determing cashflow dates for U.S. Treasuries.\n'); 
+
 % use unique CUSIP for Treasuries (avoid duplicates)
 cusips = unique(tips_treasury_match{:, 'Treasury_CUSIP'});
 [T, ~] = size(cusips);
@@ -53,5 +55,3 @@ cashflow_dates.Properties.VariableNames = transpose(cusips);
 
 % save contents of table to temporary file
 save('Temp/MATCH', 'cashflow_dates', '-append')
-
-fprintf('Cashflow dates have been determined for U.S. Treasuries.\n'); 

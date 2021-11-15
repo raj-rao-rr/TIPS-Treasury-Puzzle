@@ -11,6 +11,8 @@ load MATCH tips_treasury_match cashflow_dates
 
 %% Matching STRIPS issues with Treasury
 
+fprintf('\n4) Creating bond pairs for U.S. STRIPS and Treasuries.\n'); 
+
 % filter only the unique CUSIPS from the Treasury match 
 cusips = unique(tips_treasury_match{:, 'Treasury_CUSIP'});
 [T1, ~] = size(cusips);
@@ -36,10 +38,10 @@ for j = 1:T1
     for i = 1:size(active_dates, 1)
         
         % select the coupon date for all active cashflow dates
-        coupon = active_dates(i);
+        coupon_date = active_dates(i);
         
         % select maturity matched STRIPS (less than or equal to 31 days for coupon)
-        filtered_strips = STRIPS(abs(STRIPS{:, 'Maturity'} - coupon) <= 31, :);
+        filtered_strips = STRIPS(abs(STRIPS{:, 'Maturity'} - coupon_date) <= 31, :);
         
         % -----------------------------------------------------------
         if isempty(filtered_strips)
@@ -68,7 +70,7 @@ for j = 1:T1
                 
                 % if cusip present in STRIP price we strip NaNs and zeros
                 prices = PRICE_S(~isnan(PRICE_S{:, col_name}) & ...
-                    ~any(PRICE_S{:, col_name} == 0), col_name(:)');                 
+                    (PRICE_S{:, col_name} ~= 0), col_name(:));                 
                 
                 % -----------------------------------------------------------
                 % After filtering NaN and Zero (we assume the following)
@@ -96,9 +98,13 @@ for j = 1:T1
              
              % count the number of NaN present for a given CUSIP 
              col_name = strcat(cond_strips.CUSIP, ' Govt');                           % column name for price
-             nan_count = sum(isnan(PRICE_S{:, col_name}));                            % number of rows that are NaN in price
+             nan_count = sum(isnan(PRICE_S{PRICE_S.Dates >= current_bond.Issue_Date, ...
+                 col_name}));                            
              row_count = length(PRICE_S{:, 1});                                       % length of full price series list
-             [~, max_index] = max(row_count - nan_count);                             % determines CUSIP with most price points
+             
+             % determines CUSIP with most price points. NOTE, if more than
+             % one STRIP is flagged, we default to choose the first
+             [~, max_index] = max(row_count - nan_count);                             
              
              % the CUSIP selection for STRIP
              cusip_selection = cond_strips.CUSIP{max_index};
@@ -112,7 +118,8 @@ for j = 1:T1
         else
             % count the number of NaN present for a given CUSIP
             col_name = strcat(filtered_strips.CUSIP, ' Govt');                        % column name for price
-            nan_count = sum(isnan(PRICE_S{:, col_name}));                             % number of rows that are NaN in price
+            nan_count = sum(isnan(PRICE_S{PRICE_S.Dates >= current_bond.Issue_Date, ...
+                 col_name}));    
             row_count = length(PRICE_S{:, 1});                                        % length of full price series list
             [~, max_index] = max(row_count - nan_count);                              % determines CUSIP with most price points
              
@@ -143,6 +150,3 @@ strips_treasury_match.Properties.VariableNames = cusips;
 
 % save contents of table to temporary file
 save('Temp/MATCH', 'strips_treasury_match', '-append')
-
-fprintf('Bond pairs have been created, for U.S. STRIPS and Treasuries.\n'); 
-

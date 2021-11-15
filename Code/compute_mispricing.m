@@ -11,15 +11,18 @@ load MATCH tips_treasury_match strips_treasury_match cashflow_dates ...
 
 % loads the adjusted swap curves
 load INFADJ adj_swap_curve 
- 
+
 
 %% construct series for backtesting TIP-Treasury strategy
 
-for row = 1:1%size(tips_treasury_match, 1)
+fprintf('\n7) Constructing mispricing for TIP-Treasury strategy\n');
+
+for row = 71:71%size(tips_treasury_match, 1)
     
     % collect the current matched CUSIP for TIPS and Treasury
     current_tips = tips_treasury_match{row, 'TIPS_CUSIP'};
     current_trea = tips_treasury_match{row, 'Treasury_CUSIP'};
+    fprintf('\tTIP-Treasury backtest on %s\n', current_trea{:});
     
     % collect the corresponding price series
     tips_price_series = PRICE_TILL(:, current_tips + " Govt");
@@ -35,8 +38,8 @@ for row = 1:1%size(tips_treasury_match, 1)
     trea_price_series = rmmissing(trea_price_series);
     
     % constrict the time series to before maturity
-    tips_price_series = tips_price_series(tips_price_series.Dates<tips_maturity, :);
-    trea_price_series = trea_price_series(trea_price_series.Dates<trea_maturity, :);
+    tips_price_series = tips_price_series(tips_price_series.Dates<=tips_maturity, :);
+    trea_price_series = trea_price_series(trea_price_series.Dates<=trea_maturity, :);
     
     % determine intersection of dates for TIPS and Treasury
     [dates, iTIPS, iTREA] = intersect(tips_price_series.Dates, ...
@@ -53,7 +56,7 @@ for row = 1:1%size(tips_treasury_match, 1)
     % THIS CODE BLOCK TRUNCATES TIPS AND TREASURY DATA TO MATCH SWAPS
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
-    % Gets ZCIS curves to find the intersection of dates 
+    % find the intersection of dates with ZCIS curves 
     date_intersect = mintersect(tips_price_series.Dates, trea_price_series.Dates, ...
         adj_swap_curve.Date);
     
@@ -62,7 +65,7 @@ for row = 1:1%size(tips_treasury_match, 1)
         date_intersect), :);
     trea_price_series = trea_price_series(ismember(trea_price_series.Dates, ...
         date_intersect), :);
-    adj_swap_curve = adj_swap_curve(ismember(adj_swap_curve.Date, ...
+    swap_curve = adj_swap_curve(ismember(adj_swap_curve.Date, ...
         date_intersect), :);
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -74,25 +77,24 @@ for row = 1:1%size(tips_treasury_match, 1)
     current_coupons = current_coupons(~cellfun('isempty', current_coupons));          % remove empty rows
     
     % finds corresponding CUSIPS for STRIPS for each coupon date
-    matched_strips = STRIPS(ismember(STRIPS.Maturity, current_coupons), :);
+    matched_strips = strips_treasury_match{:, current_trea};
+    matched_strips = matched_strips(~cellfun('isempty', matched_strips));             % remove empty rows
+    
+    % match the strip corresponding with current coupons (start from end)
+    current_coupons = current_coupons(end-numel(matched_strips)+1:end);
     
     % determine the CUSIP for matched STRIPS
-    strip_cusips = matched_strips.CUSIP;
-    strip_cusips = cellfun(@(x) x + " Govt", strip_cusips);
+    strip_cusips = cellfun(@(x) x + " Govt", matched_strips)';
     
     % retrieve the corresponding STRIP prices
     strips_price_series = PRICE_S(:, strip_cusips);
-    
-%     strips_price_series = strips_price_series(:, ...        % remove NaN columns
-%         ~all(isnan(strips_price_series{:, :}),1));
-%     strips_price_series = rmmissing(strips_price_series);   % remove NaN rows
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Aligns the available dates for each coupon for TIPS, TREA and SWAP
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     date_intersect = mintersect(tips_price_series.Dates, trea_price_series.Dates, ...
-        strips_price_series.Dates, adj_swap_curve.Date);
+        strips_price_series.Dates, swap_curve.Date);
     
     % filter the corresponding series for the data 
     tips_price_series = tips_price_series(ismember(tips_price_series.Dates, ...
@@ -100,8 +102,8 @@ for row = 1:1%size(tips_treasury_match, 1)
     trea_price_series = trea_price_series(ismember(trea_price_series.Dates, ...
         date_intersect), :);
     strips_price_series = strips_price_series(ismember(strips_price_series.Dates, ...
-        date_intersect), :);
-    adj_swap_curve = adj_swap_curve(ismember(adj_swap_curve.Date, ...
+        date_intersect), flip(strips_price_series.Properties.VariableNames));
+    swap_curve = swap_curve(ismember(swap_curve.Date, ...
         date_intersect), :);
     
     % determine effecive Treasury coupon based on S/A or Annual compounding
@@ -137,7 +139,7 @@ for row = 1:1%size(tips_treasury_match, 1)
     numberOfCoupons = length(current_coupons);
     result = zeros(numel(tips_price_series.Dates), 7+numel(current_coupons)*3);
     
-    for h = 1:1%numel(tips_price_series.Dates)
+    for h = 1:numel(tips_price_series.Dates)
         
         settle_date = tips_price_series.Dates(h);   % sets the settlement date
         
@@ -146,22 +148,20 @@ for row = 1:1%size(tips_treasury_match, 1)
             'Issue_Date'};
         trea_first_coupon_date = TREASURYS{ismember(TREASURYS.CUSIP, current_trea), ...
             'First_Coupon_Date'};
-        trea_coupon = TREASURYS{ismember(TREASURYS.CUSIP, current_trea), 'Cpn'}/100;
+        trea_coupon = TREASURYS{ismember(TREASURYS.CUSIP, current_trea), 'Cpn'};
         
         tips_issue_date = TIPS{ismember(TIPS.CUSIP, current_tips), 'Issue_Date'};
         tips_first_coupon_date = TIPS{ismember(TIPS.CUSIP, current_tips), ...
             'First_Coupon_Date'};
-        tips_coupon = TIPS{ismember(TIPS.CUSIP, current_tips), 'Cpn'} / 100;
-        
-        face_value = 100; 
+        tips_coupon = TIPS{ismember(TIPS.CUSIP, current_tips), 'Cpn'};
         
         % compute the accrued interest of Treasury and TIPS 
         act_trea_on_tips = accrued_interest(tips_issue_date, settle_date, ...
-            tips_first_coupon_date, face_value, trea_coupon, tips_maturity);
+            tips_first_coupon_date, trea_coupon, tips_maturity);
         act_trea = accrued_interest(trea_issue_date, settle_date, ...
-            trea_first_coupon_date, face_value, trea_coupon, trea_maturity);
+            trea_first_coupon_date, trea_coupon, trea_maturity);
         act_tips = accrued_interest(tips_issue_date, settle_date, ...
-            tips_first_coupon_date, face_value, tips_coupon, tips_maturity);
+            tips_first_coupon_date, tips_coupon, tips_maturity);
         
         % gets reference price index for the ZCIS (T+2 convention)
         start_date = busdate(busdate(settle_date,1), 1);              
@@ -173,7 +173,7 @@ for row = 1:1%size(tips_treasury_match, 1)
         
         % if inflation adjusted we perform scaling 
         if inflation_adj_flag
-            referenceIndexBaseAdjustment = currentZCISRefIndex/currentTIPSRefIndex;
+            referenceIndexBaseAdjustment = currentZCISRefIndex / currentTIPSRefIndex;
         else
             referenceIndexBaseAdjustment = 1;
         end
@@ -189,11 +189,13 @@ for row = 1:1%size(tips_treasury_match, 1)
         result(h, 2) = dirtyTREA;
         
         % gets the swap curve of the settlement date
-        swapCurve = adj_swap_curve(ismember(adj_swap_curve.Date, settle_date), :);
+        swapCurve = swap_curve(ismember(swap_curve.Date, settle_date), :);
         
         % finds the fixed leg for each swap point for each coupon
         fixedSwapLeg = zeros(length(current_coupons), 1);
         p = 1; 
+        
+        % start with last coupon and stop before we take matured coupons
         for i = length(current_coupons):-1:1
             
             last_date = datetime(current_coupons(length(current_coupons)-(p-1)));  
@@ -206,22 +208,22 @@ for row = 1:1%size(tips_treasury_match, 1)
                     days_to_settlement = 1;
                  end
                  
-                 swap_pts = (((1+adj_swap_curve{settle_date,'1y'})^...
+                 swap_pts = (((1+swap_curve{settle_date, '1y'})^...
                      (days_to_settlement)-1)*referenceIndexBaseAdjustment)+1;
                  fixedSwapLeg(p,1) = swap_pts;
              
             % else we take the linear interpolation between the closet two dates
             else 
                  if (last_date-settle_date) / 365 > 30
-                     last_date = last_date-(((last_date-settle_date)/365)-30)*365; % note sure why this is rounded, can't round datetime but maybe was numerical date
+                     last_date = last_date-(((last_date-settle_date)/365)-30)*365;    % this use to be rounded, can't round datetime but maybe was numerical date
                  end 
                  
-                 swapTenor = 1:1/12:30;
+                 swapTenor = 1/12:1/12:30;
                  negativeIndices = find(swapTenor-((last_date-settle_date)/365)<0);
-                 curveSlope = (adj_swap_curve{settle_date, max(negativeIndices)+1}-adj_swap_curve{settle_date,max(negativeIndices)})/(swapTenor(max(negativeIndices)+1)-swapTenor(max(negativeIndices)));
+                 curveSlope = (swap_curve{settle_date, max(negativeIndices)}-swap_curve{settle_date,max(negativeIndices)-1})/(swapTenor(max(negativeIndices))-swapTenor(max(negativeIndices)-1));
                  
                  % linear interpolation: y = ax + b 
-                 fixedLegInterpolation = (days((last_date-settle_date)/365)-max(negativeIndices)*1/12)*curveSlope+adj_swap_curve{settle_date,max(negativeIndices)};
+                 fixedLegInterpolation = (days((last_date-settle_date)/365)-max(negativeIndices)*1/12)*curveSlope+swap_curve{settle_date,max(negativeIndices)};
                  fixedSwapLeg(p,1) = (((1+fixedLegInterpolation)^days((last_date-settle_date)/365)-1)*referenceIndexBaseAdjustment)+1;
             end    
             
@@ -238,14 +240,14 @@ for row = 1:1%size(tips_treasury_match, 1)
         % calculates the strip to be traded
         if length(tempPricesSTRIP) > 1
             missingCashflow(1,1) = ((cnpTREA+100)-(fixedSwapLeg(1,1)*(cnpTIPS+100)))/100;
-            missingCashflow(2:length(fixedSwapLeg),1) = ((cnpTREA-(fixedSwapLeg(2:length(fixedSwapLeg))*cnpTIPS))/100);
+            missingCashflow(2:length(fixedSwapLeg),1) = (cnpTREA-(fixedSwapLeg(2:length(fixedSwapLeg))*cnpTIPS))/100;
             STRIPSTrade = missingCashflow.*tempPricesSTRIP';
         else
             missingCashflow = ((cnpTREA+100)-(fixedSwapLeg(1,1)*(cnpTIPS+100)))/100;
             STRIPSTrade(1,1) = missingCashflow*tempPricesSTRIP(1,1);
         end
         
-        currentSTIPSCashDates = actual_cashflow_dates{:, row};
+        currentSTIPSCashDates = actual_cashflow_dates{:, current_trea};
         currentSTIPSCashDates = datetime(currentSTIPSCashDates(~cellfun('isempty', ...
             currentSTIPSCashDates)));
                 
@@ -259,9 +261,14 @@ for row = 1:1%size(tips_treasury_match, 1)
             
         else
             if settle_date < trea_issue_date
-                yieldToMaturityTREA = bndyield(trea_price_series{h, :}, ...
-                    coupon_trea/100, trea_issue_date, trea_maturity, 2, 0, 0, ...
-                    trea_issue_date, trea_first_coupon_date);
+                yieldToMaturityTREA = bndyield(...
+                    trea_price_series{h, :}, ...    % clean price                                    
+                    coupon_trea/100, ...            % coupon treasury
+                    trea_issue_date, ...            % settlement date
+                    trea_maturity, ...              % maturity
+                    2, 0, 0, ...                    % period, basis, end month rule
+                    trea_issue_date, ...            % issue date
+                    trea_first_coupon_date);        % first coupon date    
                 
                 % compute the synthethic price for replication
                 synthetic_price = tips_price_series{h, :} + sum(STRIPSTrade);
@@ -269,10 +276,10 @@ for row = 1:1%size(tips_treasury_match, 1)
                     coupon_trea/100, tips_issue_date, tips_maturity, 2, 0, 0, ...
                     tips_issue_date, tips_first_coupon_date);
                 
-            elseif settle_date ~= trea_maturity
+            elseif settle_date < tips_maturity
                 
                 yieldToMaturityTREA = bndyield(trea_price_series{h, :}, ...
-                    coupon_trea/100, trea_issue_date, trea_maturity, 2, 0, 0, ...
+                    coupon_trea/100, settle_date, trea_maturity, 2, 0, 0, ...
                     trea_issue_date, trea_first_coupon_date);
                 
                 % compute the synthethic price for replication
@@ -289,12 +296,12 @@ for row = 1:1%size(tips_treasury_match, 1)
                     trea_issue_date, trea_first_coupon_date);
                 yieldToMaturityTREASynth = 0; 
                 
-            end    
+            end 
+            
         end
         
         result(h, 3) = yieldToMaturityTREA; 
         result(h, 4) = yieldToMaturityTREASynth; 
-        
         
         % if settle is equal maturity we subtract one day to get a estimate of the YTM
         if settle_date >= trea_maturity 
@@ -332,6 +339,14 @@ for row = 1:1%size(tips_treasury_match, 1)
         
     end
     
+    % perform winzorization to remove major outliers
+    if winsor_flag
+        result(:,8) = winsor(result(:,8),[1 99]); 
+        result(:,9) = winsor(result(:,9),[1 99]);
+    end
+    
+    fprintf('\t\tsize of mispricing series %d\n', size(result, 1));
+    
     % clean for exportation to results_students_adjusted folder 
     result_tb = array2table(result);
     result_tb = table2timetable(result_tb, 'RowTimes', tips_price_series.Dates);
@@ -341,28 +356,9 @@ for row = 1:1%size(tips_treasury_match, 1)
         'price_trea', 'dirty_price_synthetic_treasury', 'clean_price_synthetic_treasury', ...
         'arbitrage_profit_loss', 'arbitrage_ytm'};
     
-    writetable(result_tb, strcat(root_dir, ...
-        '/Output/results_student_adjusted/student_adjusted_', current_trea{:}, '.csv'))
+    result_tb.Properties.VariableNames(1:numel(col_names)) = col_names; 
+    
+    writetimetable(result_tb, strcat(root_dir, ...
+        '/Output/mispricing_results/student_adjusted_', current_trea{:}, '.csv'))
     
 end
-
-%% computes mispricing averages for all pairs
-
-% calculates mean mispricing on all pairs
-
-mispricingaverages = zeros(size(tips_treasury_match, 1), 1);
-for i = 1:1%size(tips_treasury_match, 1)
-    
-    % collect the current matched CUSIP for Treasury
-    current_trea = tips_treasury_match{row, 'Treasury_CUSIP'};
-    
-    % read file table to construct mispricing average
-    filename = strcat(root_dir, '/Output/results_student_adjusted/student_adjusted_', ...
-        current_trea{:}, '.csv');
-    data = readtable(filename);
- 
-    mispricingaverages(i,1) = length(data(:,8)); 
-
-end 
-
-mispricingaverages = transpose(mispricingaverages);

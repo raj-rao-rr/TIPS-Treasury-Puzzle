@@ -11,6 +11,8 @@ load MATCH strips_treasury_match
 
 %% loop through bonds to store coupon payment dates
 
+fprintf('\n5) Creating actual cash flow dates\n'); 
+
 % treasury cusips corresponding to columns in .mat
 cusips = strips_treasury_match.Properties.VariableNames;
 [~, T1] = size(cusips);
@@ -57,5 +59,3 @@ actual_cashflow_dates.Properties.VariableNames = cusips;
 
 % save contents of table to temporary file
 save('Temp/MATCH', 'actual_cashflow_dates', '-append')
-
-fprintf('Actual cash flow dates have been created\n'); 

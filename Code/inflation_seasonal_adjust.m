@@ -6,6 +6,8 @@ clearvars -except root_dir inflation_adj_flag winsor_flag;
 % Import the Zero Coupon Inflation Swaps and CPI Data Tables
 load DATA SWAPS CPI 
 
+fprintf('\n6) Fitting the seasonally adjusted zero-coupon inflation swap curve\n'); 
+
 
 %% compute the inflation seasonality factors
 
@@ -148,5 +150,3 @@ adj_swap_curve = table2timetable(adj_swap_curve);
 % save contents of table to temporary file
 save('Temp/INFADJ', 'interpolated_pts', 'forward_swap', 'adj_forward_swap', ...
     'adj_swap_curve')
-
-fprintf('Fitted the seasonally adjusted zero-coupon inflation swap curve\n'); 

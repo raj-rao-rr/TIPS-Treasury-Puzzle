@@ -8,6 +8,8 @@ load DATA TIPS TREASURYS PRICE_T
 
 %% Matching TIPS issues with Treasury
 
+fprintf('\n2) Creating bond pairs for U.S. TIPS and Treasuries.\n'); 
+
 [T1, ~] = size(TIPS);
 
 % will be stored for database construction (unfiltered)
@@ -129,5 +131,3 @@ tips_treasury_match.Properties.VariableNames = {'TIPS_CUSIP', 'Treasury_CUSIP'};
 
 % save contents of table to temporary file
 save('Temp/MATCH', 'tips_treasury_match')
-
-fprintf('Bond pairs have been created, for U.S. TIPS and Treasuries.\n'); 
