@@ -78,7 +78,9 @@ Data Fields that are automatically updated from HTML connections
 
 **IV. Run the `main.m` script**
 
-Once all data has been updated you are free to run the entire project base. You may opt to run the main.m file in a MATLAB interactive session or via terminal on your local machine or HPC cluster.
+1.	Modify the Boolean variable  on line 20 and 21 of the `main.m` to the user specifications. Note that `inflation_adj_flag` toggles for base inflation adjustment to the cash flow series and `winsor_flag` toggles for winsorizing individual pair results to remove outliers
+
+2. Once all data has been updated you are free to run the entire project base. You may opt to run the main.m file in a MATLAB interactive session or via terminal on your local machine or HPC cluster.
   ```
   % %    e.g., running code via batch on the FRBNY RAN HPC Cluster
   $ matlab20a-batch-withemail 10 main.m 
